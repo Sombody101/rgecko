@@ -1,0 +1,32 @@
+[package]
+name = "rgecko"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+members = [".", "fuzz"]
+
+[lib]
+name = "rgecko"
+path = "src/lib.rs"
+
+[dependencies]
+arbitrary = { version = "1.4.2", features = ["derive"], optional = true }
+
+[features]
+fuzzing = ["arbitrary"]
+
+[profile.release]
+opt-level = 3
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.samply]
+inherits = "release"
+opt-level = 3
+strip = false
+lto = true
+codegen-units = 1
+panic = "unwind"
