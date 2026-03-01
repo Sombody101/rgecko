@@ -15,8 +15,6 @@ fn main() {
 
     let config = parser::parse_args(&args);
 
-    return;
-
     if extras::handle_cli_extras(&config) {
         return;
     }
