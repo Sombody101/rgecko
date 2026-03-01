@@ -12,9 +12,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
-      
       - uses: Sombody101/global-build/.github/actions/global-build@main
         with:
           bin_name: 'rgecko'
@@ -25,5 +22,3 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           files: rgecko-*
-          generate_release_notes: true
-
