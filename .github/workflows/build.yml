@@ -4,15 +4,17 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Sombody101/global-build/.github/actions/global-build@main
+      - uses: Sombody101/global-build/.github/workflows/global-build@main
         with:
           bin_name: 'rgecko'
       - uses: softprops/action-gh-release@v2
         with:
+
           files: rgecko-*
