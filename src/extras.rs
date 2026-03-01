@@ -1,10 +1,18 @@
+use std::process::exit;
+
 use crate::argparse::parser::{CliConfig, ExtraMode};
 use crate::colors::transform::MarkupOptions;
 use crate::colors::{ansicodes::FORMAT_CODES, colorsheet::COLORS, transform::markup_text};
 
 const SAMPLE_TEXT: &str = "Hello, World!";
 
-pub fn handle_cli_extras(config: CliConfig) -> bool {
+struct StyleState {
+    output: String,
+    tag_buf: String,
+    code_buf: String,
+}
+
+pub fn handle_cli_extras(config: &CliConfig) -> bool {
     match config.extras {
         ExtraMode::PrintHelp => {
             print_help_info();
@@ -20,175 +28,204 @@ pub fn handle_cli_extras(config: CliConfig) -> bool {
     return false;
 }
 
-fn list_styling_examples(user_text: &str, mode: ExtraMode, config: CliConfig) {
+fn list_styling_examples(user_text: &str, mode: ExtraMode, config: &CliConfig) {
     let sample_text = if user_text.is_empty() {
         SAMPLE_TEXT
     } else {
         user_text
     };
 
-    let output = match mode {
-        ExtraMode::ListColors => list_colors(sample_text, false, config),
-        ExtraMode::ListColorsAsBackground => list_colors(sample_text, true, config),
-        ExtraMode::ListStyles => list_styles(sample_text, config),
-        _ => String::new(),
+    let output_buffer_size = calculate_output_buffer_size(user_text.len(), mode);
+    v_log!(config.logger, "Buff size: {}", output_buffer_size);
+    //16300
+    let mut style_state = StyleState {
+        output: String::with_capacity(output_buffer_size),
+        tag_buf: String::with_capacity(64),
+        code_buf: String::with_capacity(64),
     };
 
-    print!("{}", output);
-    println!("This bitch is {} chars", output.len());
-}
-
-fn list_colors(user_text: &str, as_background: bool, config: CliConfig) -> String {
-    list_items(COLORS, |color| {
-        format_listing(ColorEntry::from(*color), as_background, user_text, config)
-    })
-}
-
-fn list_styles(user_text: &str, config: CliConfig) -> String {
-    list_items(FORMAT_CODES, |style| {
-        format_listing(StyleEntry::from(*style), false, user_text, config)
-    })
-}
-
-fn list_items<T, F>(items: &[T], mut processor: F) -> String
-where
-    F: FnMut(&T) -> String,
-{
-    let mut buffer = String::with_capacity(16300);
-
-    for item in items {
-        buffer.push_str(&processor(item));
-    }
-
-    return buffer;
-}
-
-fn format_listing<T: GeckoExample>(
-    item: T,
-    is_background: bool,
-    sample_text: &str,
-    config: CliConfig,
-) -> String {
-    let tag = item.tag();
-
-    let final_tag = if is_background {
-        format!("_ on {tag}")
-    } else {
-        tag
+    match mode {
+        ExtraMode::ListColors => list_colors(sample_text, &mut style_state, false),
+        ExtraMode::ListColorsAsBackground => list_colors(sample_text, &mut style_state, true),
+        ExtraMode::ListStyles => list_styles(sample_text, &mut style_state),
+        _ => {
+            v_log!(config.logger, "Unknown extra mode: {:?}", mode);
+        }
     };
-
-    let formatted_string = format!(
-        "({}) {:<width$} [{}]{}[/]",
-        item.code_display(),
-        item.label(),
-        final_tag,
-        sample_text,
-        width = item.width()
-    );
-
-    v_log!(config.logger, "{}", formatted_string);
 
     let options = MarkupOptions {
         color_mode: config.color_mode,
-        newline: config.newline,
+        newline: false,
         handle_escape: config.handle_escape,
         no_binary_expansion: config.no_binary_expansion,
         logger: config.logger,
     };
 
-    let processed_string = markup_text(&formatted_string, options);
+    let processed_string = markup_text(&style_state.output, options);
+    v_log!(config.logger, "Final size: {}", processed_string.len());
 
-    return processed_string;
+    print!("{}", processed_string);
+}
+
+fn list_colors(user_text: &str, state: &mut StyleState, as_background: bool) {
+    list_items(COLORS, state, |color, state| {
+        format_listing(ColorEntry::from(*color), state, as_background, user_text);
+    })
+}
+
+fn list_styles(user_text: &str, state: &mut StyleState) {
+    list_items(FORMAT_CODES, state, |style, state| {
+        format_listing(StyleEntry::from(*style), state, false, user_text)
+    })
+}
+
+fn list_items<T, F>(items: &[T], state: &mut StyleState, mut processor: F)
+where
+    F: FnMut(&T, &mut StyleState) -> (),
+{
+    for item in items {
+        processor(item, state);
+    }
+}
+
+fn format_listing<T: GeckoExample>(
+    item: T,
+    state: &mut StyleState,
+    is_background: bool,
+    sample_text: &str,
+) {
+    state.code_buf.clear();
+    item.code_display(&mut state.code_buf);
+
+    state.tag_buf.clear();
+    if is_background {
+        state.tag_buf.push_str("_ on ");
+    }
+    item.tag(&mut state.tag_buf);
+
+    use std::fmt::Write;
+    let _ = write!(
+        state.output,
+        "({}) {:<width$} [{}]{}[/]\n",
+        state.code_buf,
+        item.label(),
+        state.tag_buf,
+        sample_text,
+        width = item.width()
+    );
 }
 
 fn print_help_info() {
     print!(
-        r#"usage: gecko [[options...]] [[text..]]
-Display text with markup (color), speedily and efficiently.
+        r#"Usage: gecko [OPTIONS] [TEXT]...
 
-Stops parsing options after standalone '--' is read.
+Arguments:
+  [TEXT]...  Text to display with markup (color)
 
-    Options:
-      -n:	No newline when printing output text
-
-      -c:	Force color output even when not detected as supported (256 color)
-
-      -C:	Force no color output even when detected as supported
-
-      -M:	Do not resolve markup sequences
-
-      --listc:	List possible colors (listc[olors])
-          (Add text after to change sample text, markup is still parsed)
-
-      --listcb:	List possible colors as backgrounds (listc[olor]b[ackgrounds])
-
-      --lists:	 List possible styles and their ANSI codes
+Options:
+  -n, --no-newline      Do not print a newline at the end
+  -c, --force-color     Force color output (256-color) even if not detected
+  -C, --no-color        Disable color output even if detected
+  -M, --no-markup       Do not resolve markup sequences
+      --list-colors     List possible colors (Sample text can be appended, defaults to "Hello, World!)
+      --list-bg         List possible colors as backgrounds
+      --list-styles     List possible styles and their ANSI codes
+  -h, --help            Print help
+  -V, --version         Print version
 "#
     );
 }
 
+fn calculate_output_buffer_size(sample_length: usize, mode: ExtraMode) -> usize {
+    let row_overhead = 15;
+    let label_width = 20;
+    let code_width = 10;
+
+    let (tag_padding, count) = match mode {
+        ExtraMode::ListColors => (15, 256),
+        ExtraMode::ListColorsAsBackground => (30, 256),
+        ExtraMode::ListStyles => (10, 10),
+        _ => (5, 1),
+    };
+
+    let bytes_per_line = row_overhead + label_width + code_width + tag_padding + sample_length;
+
+    let total_estimate = (bytes_per_line * count) + 1024;
+
+    if total_estimate >= (500 * 1024 * 1024) {
+        eprintln!("Input text too large0!");
+        exit(1);
+    }
+
+    total_estimate
+}
+
 trait GeckoExample {
     fn label(&self) -> &str;
-    fn code_display(&self) -> String;
-    fn tag(&self) -> String;
+    fn code_display(&self, output: &mut String);
+    fn tag(&self, output: &mut String);
     fn width(&self) -> usize;
 }
 
-struct ColorEntry {
-    name: String,
+struct ColorEntry<'a> {
+    name: &'a str,
     code: u32,
 }
 
-impl GeckoExample for ColorEntry {
+impl<'a> GeckoExample for ColorEntry<'a> {
     fn label(&self) -> &str {
         &self.name
     }
-    fn code_display(&self) -> String {
-        format!("#{:06x}", self.code)
+    fn code_display(&self, output: &mut String) {
+        use std::fmt::Write;
+        let _ = write!(output, "#{:06x}", self.code);
     }
-    fn tag(&self) -> String {
-        format!("#{:06x}", self.code)
+    fn tag(&self, output: &mut String) {
+        use std::fmt::Write;
+        let _ = write!(output, "#{:06x}", self.code);
     }
     fn width(&self) -> usize {
         17
     }
 }
 
-impl From<(&str, u32)> for ColorEntry {
-    fn from(pair: (&str, u32)) -> Self {
-        return ColorEntry {
-            name: pair.0.to_string(),
+impl<'a> From<(&'a str, u32)> for ColorEntry<'a> {
+    fn from(pair: (&'a str, u32)) -> Self {
+        ColorEntry {
+            name: pair.0,
             code: pair.1,
-        };
+        }
     }
 }
 
-struct StyleEntry {
-    name: String,
-    ansi_code: String,
+struct StyleEntry<'a> {
+    name: &'a str,
+    ansi_code: &'a str,
 }
 
-impl GeckoExample for StyleEntry {
+impl<'a> GeckoExample for StyleEntry<'a> {
     fn label(&self) -> &str {
         &self.name
     }
-    fn code_display(&self) -> String {
-        format!("ANSI: {:>2}", self.ansi_code)
+    fn code_display(&self, output: &mut String) {
+        use std::fmt::Write;
+        let _ = write!(output, "ANSI: {:>2}", self.ansi_code);
     }
-    fn tag(&self) -> String {
-        self.name.clone()
+    fn tag(&self, output: &mut String) {
+        use std::fmt::Write;
+        let _ = write!(output, "{}", self.name);
     }
     fn width(&self) -> usize {
         11
     }
 }
 
-impl From<(&str, &str)> for StyleEntry {
-    fn from(pair: (&str, &str)) -> Self {
-        return StyleEntry {
-            name: pair.0.to_string(),
-            ansi_code: pair.1.to_string(),
-        };
+impl<'a> From<(&'a str, &'a str)> for StyleEntry<'a> {
+    fn from(pair: (&'a str, &'a str)) -> Self {
+        StyleEntry {
+            name: pair.0,
+            ansi_code: pair.1,
+        }
     }
 }
 

@@ -12,19 +12,23 @@ path = "src/lib.rs"
 
 [dependencies]
 arbitrary = { version = "1.4.2", features = ["derive"], optional = true }
+dhat = "0.3.3"
+log = "0.4.29"
 
 [features]
 fuzzing = ["arbitrary"]
+dhat-heap = []
 
 [profile.release]
-opt-level = 3
-strip = true
-lto = true
+opt-level = "z"
+strip = "symbols"
+lto = "fat"
 codegen-units = 1
 panic = "abort"
 
 [profile.samply]
 inherits = "release"
+debug = true
 opt-level = 3
 strip = false
 lto = true

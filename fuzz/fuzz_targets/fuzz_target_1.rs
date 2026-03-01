@@ -2,6 +2,7 @@
 use libfuzzer_sys::fuzz_target;
 use rgecko::argparse::parser::ColorMode;
 use rgecko::colors::transform;
+use rgecko::colors::transform::MarkupOptions;
 use rgecko::logger::Logger;
 
 fuzz_target!(|data: &[u8]| {
@@ -22,13 +23,14 @@ fuzz_target!(|data: &[u8]| {
     let logger = Logger { verbose: false };
 
     if let Ok(user_text) = std::str::from_utf8(&data[5..]) {
-        let _ = transform::markup_text(
-            user_text,
-            color_mode,
-            newline,
-            handle_escape,
-            no_binary_expansion,
-            logger,
-        );
+        let options = MarkupOptions {
+            color_mode: color_mode,
+            newline: newline,
+            handle_escape: handle_escape,
+            no_binary_expansion: no_binary_expansion,
+            logger: logger,
+        };
+
+        let _ = transform::markup_text(user_text, options);
     }
 });

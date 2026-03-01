@@ -4,11 +4,18 @@ use rgecko::colors::transform::MarkupOptions;
 use rgecko::extras;
 use std::env;
 
-fn main() {
-    let args: Vec<String> = env::args().skip(1).collect();
-    let args_slices: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
 
-    let config = parser::parse_args(&args_slices);
+fn main() {
+    #[cfg(feature = "dhat-heap")]
+    let _profiler = dhat::Profiler::new_heap();
+    let args = env::args().skip(1);
+
+    let config = parser::parse_args(&args);
+
+    return;
 
     if extras::handle_cli_extras(&config) {
         return;
@@ -22,7 +29,7 @@ fn main() {
             newline: config.newline,
             handle_escape: config.handle_escape,
             no_binary_expansion: config.no_binary_expansion,
-            logger,
+            logger: config.logger,
         };
 
         let processed_text = transform::markup_text(&config.text_input, options);

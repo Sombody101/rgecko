@@ -2,6 +2,7 @@ use crate::colors::terms::get_color_support;
 use crate::{logger::Logger, v_log};
 use std::borrow::Cow;
 use std::env;
+use std::ffi::{OsStr, OsString};
 
 pub struct CliConfig {
     pub color_mode: ColorMode,
@@ -40,7 +41,11 @@ pub enum ExtraMode {
     ListStyles,
 }
 
-pub fn parse_args(args: &[&str]) -> CliConfig {
+pub fn parse_args<I, T>(args: I) -> CliConfig
+where
+    I: IntoIterator<Item = T>,
+    T: AsRef<str>,
+{
     let mut config = CliConfig {
         color_mode: ColorMode::Default,
         handle_escape: false,
@@ -52,27 +57,42 @@ pub fn parse_args(args: &[&str]) -> CliConfig {
         no_binary_expansion: false,
     };
 
-    if args.is_empty() {
+    let mut iter = args.into_iter().peekable();
+    if iter.peek().is_none() {
         return config;
     }
 
-    loop_arguments(args, &mut config);
+    loop_arguments(&mut iter, &mut config);
 
-    let color_support = get_color_support();
     if config.color_mode == ColorMode::Default {
-        config.color_mode = color_support;
+        config.color_mode = get_color_support();
     }
 
-    return config;
+    config
 }
 
-fn loop_arguments(args: &[&str], config: &mut CliConfig) {
+fn loop_arguments<I, T>(iter: &mut I, config: &mut CliConfig)
+where
+    I: Iterator<Item = T>,
+    T: AsRef<str>,
+{
     let mut buffer: Vec<Cow<str>> = vec![];
 
-    for (index, &word) in args.iter().enumerate() {
+    for (index, arg) in iter.enumerate() {
+        let word = arg.as_ref();
+
         if word == "--" {
-            let joined = args[(index + 1)..].join(" ");
-            buffer.push(Cow::Owned(joined));
+            let joined = iter.enumerate().fold(String::new(), |mut acc, (i, x)| {
+                if i > 0 {
+                    acc.push(' ');
+                }
+                acc.push_str(x.as_ref());
+                acc
+            });
+
+            if !joined.is_empty() {
+                buffer.push(Cow::Owned(joined));
+            }
             break;
         }
 

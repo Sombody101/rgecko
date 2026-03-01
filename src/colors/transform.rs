@@ -27,16 +27,40 @@ impl Default for MarkupOptions {
     }
 }
 
+struct VisitorState {
+    /* Used to store ANSI styles */
+    style_buffer: String,
+    /* Used for formatting ANSI codes */
+    ansi_buffer: String,
+    /* Used for assembling colors. This is the only one that can and will contain binary (0x1b) */
+    scratch: String,
+}
+
+impl VisitorState {
+    fn new() -> Self {
+        Self {
+            style_buffer: String::with_capacity(32),
+            ansi_buffer: String::with_capacity(32),
+            scratch: String::with_capacity(64),
+        }
+    }
+}
+
 pub fn markup_text<T>(user_text: &str, options: T) -> String
 where
     T: Into<MarkupOptions>,
 {
+    if user_text.is_empty() {
+        return String::new();
+    }
+
     let opt = options.into();
 
-    let mut buffer = String::new();
-    let mut color_buffer = String::new();
+    let mut visitor_state = VisitorState::new();
+    let mut buffer = String::with_capacity(user_text.len());
+    let mut color_buffer = String::with_capacity(32);
 
-    let mut state = MachineState::Normal;
+    let mut machine_state = MachineState::Normal;
 
     let chars: Vec<char> = user_text.chars().collect();
     let len = chars.len();
@@ -49,89 +73,90 @@ where
         return chars.get(index + 1) == Some(&char);
     };
 
-    for (i, char) in chars.iter().enumerate() {
-        match state {
+    for (i, &char) in chars.iter().enumerate() {
+        match machine_state {
             MachineState::Normal => {
-                if *char == '\x1b' && peek_equals(i, '[') {
+                if char == '\x1b' && peek_equals(i, '[') {
                     color_buffer.push('\x1b');
-                    state = MachineState::ReadingAnsiCode;
-                } else if *char == '[' {
+                    machine_state = MachineState::ReadingAnsiCode;
+                } else if char == '[' {
                     if i + 1 < len && chars.get(i + 1) == Some(&'[') {
                         v_log!(opt.logger, "Escaping tag at index {}", i);
                         buffer.push('[');
                     }
 
-                    state = MachineState::ReadingColor;
+                    machine_state = MachineState::ReadingColor;
                     color_buffer.clear();
                 } else {
-                    buffer.push(*char);
+                    buffer.push(char);
                 }
             }
             MachineState::ReadingColor => {
-                if *char == '[' {
+                if char == '[' {
                     v_log!(
                         opt.logger,
                         "Found unexpected opening tag, ignoring. ({})",
-                        *char
+                        char
                     );
                     continue;
                 }
 
-                if lookbehind_equals(i, ']') && *char == '/' {
-                    state = MachineState::ReadingReset;
-                } else if *char == ']' && !(i >= 1 && lookbehind_equals(i, '[')) {
-                    let color = resolve_color_code(
+                if lookbehind_equals(i, ']') && char == '/' {
+                    machine_state = MachineState::ReadingReset;
+                } else if char == ']' && !(i >= 1 && lookbehind_equals(i, '[')) {
+                    resolve_color_code(
                         &color_buffer,
                         false,
                         opt.color_mode,
                         opt.no_binary_expansion,
+                        &mut visitor_state,
+                        &mut buffer,
                         opt.logger,
                     );
-                    buffer.push_str(&color);
-                    color_buffer.clear();
-                    state = MachineState::Normal;
+                    machine_state = MachineState::Normal;
                 } else {
-                    color_buffer.push(*char);
+                    color_buffer.push(char);
                 }
             }
             MachineState::ReadingReset => {
-                if *char == ']' && !(i >= 1 && lookbehind_equals(i, '[')) {
+                if char == ']' && !(i >= 1 && lookbehind_equals(i, '[')) {
                     buffer.push_str(if opt.no_binary_expansion {
                         READABLE_RESET_COLOR
                     } else {
                         RESET_COLOR
                     });
                 } else {
-                    v_log!(opt.logger, "Unexpected character {}, ignoring.", *char);
+                    v_log!(opt.logger, "Unexpected character {}, ignoring.", char);
                 }
 
-                state = MachineState::Normal;
+                machine_state = MachineState::Normal;
             }
             MachineState::ReadingAnsiCode => {
-                color_buffer.push(*char);
-                if *char >= '@' && *char <= '~' {
+                color_buffer.push(char);
+                if char >= '@' && char <= '~' {
                     v_log!(opt.logger, "Found ANSI code: {:?}", color_buffer);
                     buffer.push_str(&color_buffer);
                     color_buffer.clear();
-                    state = MachineState::Normal;
+                    machine_state = MachineState::Normal;
                 } else if color_buffer.len() > 32 {
                     buffer.push_str(&color_buffer);
                     color_buffer.clear();
-                    state = MachineState::Normal;
+                    machine_state = MachineState::Normal;
                 }
             }
         }
     }
 
-    if state == MachineState::ReadingColor {
-        let color = resolve_color_code(
+    if machine_state == MachineState::ReadingColor {
+        resolve_color_code(
             &color_buffer,
             false,
             opt.color_mode,
             opt.no_binary_expansion,
+            &mut visitor_state,
+            &mut buffer,
             opt.logger,
         );
-        buffer.push_str(&color);
     }
 
     if opt.handle_escape {
@@ -146,110 +171,135 @@ where
 }
 
 fn resolve_color_code(
-    raw_color: &str,
+    color_text: &str,
     resolving_background: bool,
     color_mode: ColorMode,
     no_binary_expansion: bool,
+    visitor_state: &mut VisitorState,
+    output: &mut String,
     logger: Logger,
-) -> String {
-    if raw_color.is_empty() || raw_color == "/" || color_mode == ColorMode::NoColor {
-        return if no_binary_expansion {
-            READABLE_RESET_COLOR.to_owned()
+) {
+    visitor_state.scratch.clear();
+
+    if color_text.is_empty() || color_text == "/" || color_mode == ColorMode::NoColor {
+        if no_binary_expansion {
+            output.push_str(READABLE_RESET_COLOR)
         } else {
-            RESET_COLOR.to_owned()
+            output.push_str(RESET_COLOR)
         };
+
+        return;
     }
 
-    let mut color_string = raw_color;
+    let fallback_index = output.len();
+    let mut primary_color = color_text;
 
-    let mut final_color = String::new();
     if !resolving_background {
-        let segments = color_string.split_once(" on ");
-        match segments {
-            Some(n) => {
-                final_color =
-                    resolve_color_code(n.1, true, color_mode, no_binary_expansion, logger);
-                color_string = n.0;
-            }
-            None => {}
+        if let Some((fg, bg)) = color_text.split_once(" on ") {
+            resolve_color_code(
+                bg,
+                true,
+                color_mode,
+                no_binary_expansion,
+                visitor_state,
+                output,
+                logger,
+            );
+            primary_color = fg;
         }
     }
 
-    v_log!(logger, "Resolving tag '{}'", color_string);
+    v_log!(logger, "Resolving tag '{}'", primary_color);
 
-    let (style_str, color_str) = extract_color_information(color_string, logger);
+    let style_buffer = &mut visitor_state.style_buffer;
+    let ansi_buffer = &mut visitor_state.ansi_buffer;
+    extract_color_information(primary_color, style_buffer, ansi_buffer, logger);
 
-    if !color_str.is_empty() && color_str != "_" {
-        // get color
-        if color_str.starts_with('#') && color_str.len() == 7 {
-            if let Ok(i_color) = u32::from_str_radix(&color_str[1..], 16) {
-                let hex_color = output_color_from_hex(i_color, resolving_background);
-                v_log!(logger, "Hex color {}", hex_color);
-                final_color.push_str(&hex_color);
+    /*
+     * output should NOT be modified above this comment, it could lead to output corruption
+     */
+
+    if !ansi_buffer.is_empty() && ansi_buffer != "_" {
+        if ansi_buffer.starts_with('#')
+            && let 4 | 7 = ansi_buffer.len()
+        {
+            let hex_content = &ansi_buffer[1..];
+            if let Ok(i_color) = u32::from_str_radix(hex_content, 16) {
+                let final_color = if hex_content.len() == 3 {
+                    let r = (i_color >> 8) & 0xF;
+                    let g = (i_color >> 4) & 0xF;
+                    let b = i_color & 0xF;
+                    (r << 20) | (r << 16) | (g << 12) | (g << 8) | (b << 4) | b
+                } else {
+                    i_color
+                };
+
+                // hexadecimal
+                ansi_buffer.clear();
+                get_color_from_hex(final_color, resolving_background, ansi_buffer);
             }
-        } else if color_str.starts_with("rgb(") {
-            if let Some((r, g, b)) = parse_rgb_manual(&color_str) {
-                let rgb_color = output_color_from_rgb([r, g, b], resolving_background);
-                v_log!(logger, "RGB color {}", rgb_color);
-                final_color.push_str(&rgb_color);
+        } else if ansi_buffer.starts_with("rgb(") {
+            // RGB
+            if let Some((r, g, b)) = parse_rgb_manual(&ansi_buffer) {
+                ansi_buffer.clear();
+                get_color_from_rgb([r, g, b], resolving_background, ansi_buffer);
             }
         } else {
-            // get color by name
-            match get_color_by_name(&color_str) {
-                Some(color) => {
-                    let named_color = output_color_from_hex(color, resolving_background);
-                    v_log!(logger, "Using named color {}", named_color);
-                    final_color.push_str(&named_color);
-                }
-                None => {
-                    v_log!(logger, "Failed to find color '{}'", color_str);
-                    return String::new();
-                }
+            // named color
+            if let Some(color) = get_color_by_name(&ansi_buffer) {
+                ansi_buffer.clear();
+                get_color_from_hex(color, resolving_background, ansi_buffer);
+            } else {
+                v_log!(logger, "Failed to find color '{}'", ansi_buffer);
+                return output.truncate(fallback_index);
             }
         }
+    } else if ansi_buffer == "_" {
+        ansi_buffer.clear();
     }
 
-    let mut color_assemble = format!("{};{}", style_str, final_color);
-    clean_semicolons(&mut color_assemble);
-    v_log!(logger, "Assembled color: {}", color_assemble);
+    let scratch = &mut visitor_state.scratch;
+    v_log!(logger, "Final style: {:?}", style_buffer);
+    scratch.push_str(style_buffer);
+    v_log!(logger, "ANSI color: {:?}", ansi_buffer);
+    scratch.push_str(ansi_buffer);
 
     if resolving_background {
-        v_log!(logger, "Final background color: {}", color_assemble);
-        return color_assemble;
+        // background color data is already in the buffers
+        // the below pushes are for finalizing the ANSI command
+        return;
     }
 
-    let final_color = format!(
-        "{}[{}m",
-        if no_binary_expansion { "\\x1b" } else { "\x1b" },
-        color_assemble
-    );
-    v_log!(logger, "Final color: {:?}", final_color);
-    return final_color;
+    output.push_str(if no_binary_expansion {
+        "\\x1b["
+    } else {
+        "\x1b["
+    });
+    output.push_str(scratch.strip_prefix(';').unwrap_or(&scratch));
+    output.push('m');
 }
 
-fn extract_color_information(raw_color: &str, logger: Logger) -> (String, String) {
-    let mut style_buffer = String::new();
-    let mut color = String::new();
+fn extract_color_information(
+    raw_color: &str,
+    style_out: &mut String,
+    color_out: &mut String,
+    logger: Logger,
+) {
+    style_out.clear();
+    color_out.clear();
 
-    for item in raw_color.split(" ") {
-        match get_format_code_from_label(item) {
-            Some(code) => {
-                style_buffer.push_str(code);
-            }
-            None => {
-                color = item.to_owned();
-                v_log!(logger, "Possible color item '{}'", item);
-            }
+    for item in raw_color.split(' ') {
+        v_log!(logger, "Working on '{}'", item);
+        if let Some(code) = get_format_code_from_label(item) {
+            style_out.push_str(code);
+        } else {
+            color_out.clear();
+            color_out.push_str(item);
         }
     }
 
-    if style_buffer.starts_with(';') {
-        style_buffer.remove(0);
-    }
-
-    v_log!(logger, "Resolved style: {}", style_buffer);
-    v_log!(logger, "Resolved color: {}", color);
-    return (style_buffer, color);
+    v_log!(logger, "Resolved style: {}", style_out);
+    v_log!(logger, "Resolved color: {}", color_out);
 }
 
 pub fn split_rgb_int(color: u32) -> (u8, u8, u8) {
@@ -307,30 +357,16 @@ fn parse_rgb_manual(s: &str) -> Option<(u8, u8, u8)> {
     Some((r, g, b))
 }
 
-fn output_color_from_hex(color: u32, background: bool) -> String {
+fn get_color_from_hex(color: u32, background: bool, buffer: &mut String) {
     let (r, g, b) = split_rgb_int(color);
-    return output_color_from_rgb([r, g, b], background);
+    get_color_from_rgb([r, g, b], background, buffer);
 }
 
-fn output_color_from_rgb(colors: [u8; 3], background: bool) -> String {
+fn get_color_from_rgb(colors: [u8; 3], background: bool, buffer: &mut String) {
     let color_type = if background { 48 } else { 38 };
     let (r, g, b) = split_rgb_int(find_nearest_color(colors));
-    return format!(";{};2;{};{};{}", color_type, r, g, b);
-}
-
-fn clean_semicolons(text: &mut String) {
-    let mut last_was_semi = false;
-
-    text.retain(|c| {
-        let is_semi = c == ';';
-        let keep = !(is_semi && last_was_semi);
-        last_was_semi = is_semi;
-        return keep;
-    });
-
-    let trimmed = text.trim_matches(';').to_string();
-    text.clear();
-    text.push_str(&trimmed);
+    use std::fmt::Write;
+    let _ = write!(buffer, ";{};2;{};{};{}", color_type, r, g, b);
 }
 
 fn expand_escape_codes(input: &str) -> String {
