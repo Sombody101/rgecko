@@ -9,11 +9,11 @@ use std::env;
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
 fn main() {
+    let args = env::args().skip(1);
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::new_heap();
-    let args = env::args().skip(1);
 
-    let config = parser::parse_args(&args);
+    let config = parser::parse_args(args);
 
     if extras::handle_cli_extras(&config) {
         return;

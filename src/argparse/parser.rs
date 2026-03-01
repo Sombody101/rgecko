@@ -1,8 +1,6 @@
 use crate::colors::terms::get_color_support;
 use crate::{logger::Logger, v_log};
-use std::borrow::Cow;
 use std::env;
-use std::ffi::{OsStr, OsString};
 
 pub struct CliConfig {
     pub color_mode: ColorMode,
@@ -36,6 +34,7 @@ pub enum ExtraMode {
     #[default]
     None,
     PrintHelp,
+    PrintVersion,
     ListColors,
     ListColorsAsBackground,
     ListStyles,
@@ -62,6 +61,9 @@ where
         return config;
     }
 
+    let (min_size, _) = iter.size_hint();
+    v_log!(config.logger, "Using min-size: {:?}", min_size);
+    config.text_input.reserve(min_size);
     loop_arguments(&mut iter, &mut config);
 
     if config.color_mode == ColorMode::Default {
@@ -76,22 +78,15 @@ where
     I: Iterator<Item = T>,
     T: AsRef<str>,
 {
-    let mut buffer: Vec<Cow<str>> = vec![];
-
-    for (index, arg) in iter.enumerate() {
+    while let Some(arg) = iter.next() {
         let word = arg.as_ref();
 
         if word == "--" {
-            let joined = iter.enumerate().fold(String::new(), |mut acc, (i, x)| {
-                if i > 0 {
-                    acc.push(' ');
+            for (i, x) in iter.enumerate() {
+                if i > 0 || !config.text_input.is_empty() {
+                    config.text_input.push(' ');
                 }
-                acc.push_str(x.as_ref());
-                acc
-            });
-
-            if !joined.is_empty() {
-                buffer.push(Cow::Owned(joined));
+                config.text_input.push_str(x.as_ref());
             }
             break;
         }
@@ -101,18 +96,19 @@ where
             v_log!(config.logger, "Switch: {}", trimmed_switch);
             resolve_switch(trimmed_switch, config);
         } else if word.starts_with('-') {
-            let trimed_switch = &word[1..];
-            v_log!(config.logger, "Shorthand group: {}", trimed_switch);
-            for char in trimed_switch.chars() {
+            let trimmed_switch = &word[1..];
+            v_log!(config.logger, "Shorthand group: {}", trimmed_switch);
+            for char in trimmed_switch.chars() {
                 resolve_shorthand_switch(char, config);
             }
         } else {
             v_log!(config.logger, "Pushing non-arg: {word}");
-            buffer.push(Cow::Borrowed(word));
+            if !config.text_input.is_empty() {
+                config.text_input.push(' ');
+            }
+            config.text_input.push_str(word);
         }
     }
-
-    config.text_input = buffer.join(" ");
 }
 
 fn resolve_shorthand_switch(switch: char, config: &mut CliConfig) {
@@ -129,6 +125,7 @@ fn resolve_shorthand_switch(switch: char, config: &mut CliConfig) {
 fn resolve_switch(word: &str, config: &mut CliConfig) {
     match word {
         "help" => config.extras = ExtraMode::PrintHelp,
+        "version" => config.extras = ExtraMode::PrintVersion,
         "listc" => config.extras = ExtraMode::ListColors,
         "listcb" => config.extras = ExtraMode::ListColorsAsBackground,
         "lists" => config.extras = ExtraMode::ListStyles,

@@ -24,10 +24,10 @@ fuzz_target!(|data: &[u8]| {
 
     if let Ok(user_text) = std::str::from_utf8(&data[5..]) {
         let options = MarkupOptions {
-            color_mode: color_mode,
-            newline: newline,
-            handle_escape: handle_escape,
-            no_binary_expansion: no_binary_expansion,
+            color_mode,
+            newline,
+            handle_escape,
+            no_binary_expansion,
             logger: logger,
         };
 

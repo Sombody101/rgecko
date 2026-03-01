@@ -66,11 +66,11 @@ where
     let len = chars.len();
 
     let lookbehind_equals = |index: usize, char: char| -> bool {
-        return chars.get(index - 1) == Some(&char);
+        return index != 0 && chars.get(index - 1) == Some(&char);
     };
 
     let peek_equals = |index: usize, char: char| -> bool {
-        return chars.get(index + 1) == Some(&char);
+        return index != len - 1 && chars.get(index + 1) == Some(&char);
     };
 
     for (i, &char) in chars.iter().enumerate() {
@@ -80,9 +80,11 @@ where
                     color_buffer.push('\x1b');
                     machine_state = MachineState::ReadingAnsiCode;
                 } else if char == '[' {
-                    if i + 1 < len && chars.get(i + 1) == Some(&'[') {
+                    if peek_equals(i, '[') {
                         v_log!(opt.logger, "Escaping tag at index {}", i);
                         buffer.push('[');
+                        machine_state = MachineState::Skip;
+                        continue;
                     }
 
                     machine_state = MachineState::ReadingColor;
@@ -93,11 +95,7 @@ where
             }
             MachineState::ReadingColor => {
                 if char == '[' {
-                    v_log!(
-                        opt.logger,
-                        "Found unexpected opening tag, ignoring. ({})",
-                        char
-                    );
+                    v_log!(opt.logger, "Found unexpected opening tag, ignoring.");
                     continue;
                 }
 
@@ -143,6 +141,9 @@ where
                     color_buffer.clear();
                     machine_state = MachineState::Normal;
                 }
+            }
+            MachineState::Skip => {
+                machine_state = MachineState::Normal;
             }
         }
     }
@@ -406,6 +407,7 @@ enum MachineState {
     ReadingColor,
     ReadingReset,
     ReadingAnsiCode,
+    Skip,
 }
 
 #[cfg(test)]

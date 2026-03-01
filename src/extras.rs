@@ -5,6 +5,10 @@ use crate::colors::transform::MarkupOptions;
 use crate::colors::{ansicodes::FORMAT_CODES, colorsheet::COLORS, transform::markup_text};
 
 const SAMPLE_TEXT: &str = "Hello, World!";
+const VERSION: &str = match option_env!("APP_VERSION") {
+    Some(v) => v,
+    None => env!("CARGO_PKG_VERSION"),
+};
 
 struct StyleState {
     output: String,
@@ -16,6 +20,10 @@ pub fn handle_cli_extras(config: &CliConfig) -> bool {
     match config.extras {
         ExtraMode::PrintHelp => {
             print_help_info();
+            return true;
+        }
+        ExtraMode::PrintVersion => {
+            print_version_info();
             return true;
         }
         ExtraMode::ListColors | ExtraMode::ListStyles | ExtraMode::ListColorsAsBackground => {
@@ -132,8 +140,14 @@ Options:
       --list-styles     List possible styles and their ANSI codes
   -h, --help            Print help
   -V, --version         Print version
+  
+rgecko v{VERSION}
 "#
     );
+}
+
+fn print_version_info() {
+    print!("rgecko v{VERSION}");
 }
 
 fn calculate_output_buffer_size(sample_length: usize, mode: ExtraMode) -> usize {
