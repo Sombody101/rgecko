@@ -9,6 +9,9 @@ debug:
 test:
 	cargo test
 
+dhat:
+    time cargo run --features dhat-heap --
+
 fuzz:
 	# Fuzz doesn't have a way to choose a profile, so a manual LTO is needed.
 	# And, cherry on the cake, you have to use a rustc nightly
