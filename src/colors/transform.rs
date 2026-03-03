@@ -164,11 +164,7 @@ where
         expand_escape_codes(&buffer);
     }
 
-    if opt.newline {
-        buffer.push('\n');
-    }
-
-    return buffer;
+    buffer
 }
 
 fn resolve_color_code(

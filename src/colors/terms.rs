@@ -15,10 +15,6 @@ fn ansi_supported() -> bool {
         return false;
     }
 
-    if !io::stdout().is_terminal() {
-        return false;
-    }
-
     if env::var_os("COLORTERM").is_some() {
         return true;
     }
@@ -42,5 +38,5 @@ fn ansi_supported() -> bool {
         return true;
     }
 
-    return false;
+    !io::stdout().is_terminal()
 }

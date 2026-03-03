@@ -1,8 +1,6 @@
-use std::process::exit;
-
 use crate::argparse::parser::{CliConfig, ExtraMode};
-use crate::colors::transform::MarkupOptions;
-use crate::colors::{ansicodes::FORMAT_CODES, colorsheet::COLORS, transform::markup_text};
+use crate::colors::{ansicodes::FORMAT_CODES, colorsheet::COLORS};
+use std::process::exit;
 
 const SAMPLE_TEXT: &str = "Hello, World!";
 const VERSION: &str = match option_env!("APP_VERSION") {
@@ -10,13 +8,13 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
-struct StyleState {
-    output: String,
+struct StyleState<'a> {
+    output: &'a mut String,
     tag_buf: String,
     code_buf: String,
 }
 
-pub fn handle_cli_extras(config: &CliConfig) -> bool {
+pub fn handle_cli_extras(config: &CliConfig, output: &mut String) -> bool {
     match config.extras {
         ExtraMode::PrintHelp => {
             print_help_info();
@@ -27,16 +25,21 @@ pub fn handle_cli_extras(config: &CliConfig) -> bool {
             return true;
         }
         ExtraMode::ListColors | ExtraMode::ListStyles | ExtraMode::ListColorsAsBackground => {
-            list_styling_examples(&config.text_input, config.extras, config);
+            list_styling_examples(&config.text_input, output, config.extras, config);
             return true;
         }
         ExtraMode::None => {}
     }
 
-    return false;
+    false
 }
 
-fn list_styling_examples(user_text: &str, mode: ExtraMode, config: &CliConfig) {
+fn list_styling_examples(
+    user_text: &str,
+    output: &mut String,
+    mode: ExtraMode,
+    config: &CliConfig,
+) {
     let sample_text = if user_text.is_empty() {
         SAMPLE_TEXT
     } else {
@@ -45,9 +48,10 @@ fn list_styling_examples(user_text: &str, mode: ExtraMode, config: &CliConfig) {
 
     let output_buffer_size = calculate_output_buffer_size(user_text.len(), mode);
     v_log!(config.logger, "Buff size: {}", output_buffer_size);
-    //16300
+    output.reserve(output_buffer_size);
+
     let mut style_state = StyleState {
-        output: String::with_capacity(output_buffer_size),
+        output,
         tag_buf: String::with_capacity(64),
         code_buf: String::with_capacity(64),
     };
@@ -60,19 +64,6 @@ fn list_styling_examples(user_text: &str, mode: ExtraMode, config: &CliConfig) {
             v_log!(config.logger, "Unknown extra mode: {:?}", mode);
         }
     };
-
-    let options = MarkupOptions {
-        color_mode: config.color_mode,
-        newline: false,
-        handle_escape: config.handle_escape,
-        no_binary_expansion: config.no_binary_expansion,
-        logger: config.logger,
-    };
-
-    let processed_string = markup_text(&style_state.output, options);
-    v_log!(config.logger, "Final size: {}", processed_string.len());
-
-    print!("{}", processed_string);
 }
 
 fn list_colors(user_text: &str, state: &mut StyleState, as_background: bool) {
@@ -132,14 +123,16 @@ Arguments:
 
 Options:
   -n, --no-newline      Do not print a newline at the end
+  -e, --handle-escape   Expand escape sequences
   -c, --force-color     Force color output (256-color) even if not detected
   -C, --no-color        Disable color output even if detected
-  -M, --no-markup       Do not resolve markup sequences
-      --list-colors     List possible colors (Sample text can be appended, defaults to "Hello, World!)
-      --list-bg         List possible colors as backgrounds
-      --list-styles     List possible styles and their ANSI codes
-  -h, --help            Print help
-  -V, --version         Print version
+  -m, --no-markup       Do not resolve markup sequences
+  -i, --interactive     Forward output to less
+      --listc           List possible colors (Sample text can be appended, defaults to "Hello, World!)
+      --listcb          List possible colors as backgrounds
+      --lists           List possible styles and their ANSI codes
+      --help            Print help
+      --version         Print version
   
 rgecko v{VERSION}
 "#
@@ -147,7 +140,7 @@ rgecko v{VERSION}
 }
 
 fn print_version_info() {
-    print!("rgecko v{VERSION}");
+    println!("rgecko v{VERSION}");
 }
 
 fn calculate_output_buffer_size(sample_length: usize, mode: ExtraMode) -> usize {

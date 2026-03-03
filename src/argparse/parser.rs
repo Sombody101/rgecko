@@ -19,6 +19,9 @@ pub struct CliConfig {
     pub logger: Logger,
 
     pub no_binary_expansion: bool,
+
+    // Forwards text to less. Mainly for listc and listcb, but will also work for normal output if its large enough
+    pub interactive: bool,
 }
 
 #[derive(Debug, Default, PartialEq, Clone, Copy)]
@@ -54,6 +57,7 @@ where
         extras: ExtraMode::None,
         logger: create_logger(),
         no_binary_expansion: false,
+        interactive: false,
     };
 
     let mut iter = args.into_iter().peekable();
@@ -117,7 +121,8 @@ fn resolve_shorthand_switch(switch: char, config: &mut CliConfig) {
         'e' => config.handle_escape = true,
         'c' => config.color_mode = ColorMode::Color256,
         'C' => config.color_mode = ColorMode::NoColor,
-        'M' => config.no_markup = true,
+        'm' => config.no_markup = true,
+        'i' => config.interactive = true,
         _ => {}
     };
 }
@@ -129,19 +134,21 @@ fn resolve_switch(word: &str, config: &mut CliConfig) {
         "listc" => config.extras = ExtraMode::ListColors,
         "listcb" => config.extras = ExtraMode::ListColorsAsBackground,
         "lists" => config.extras = ExtraMode::ListStyles,
-        "verbose" => config.logger.verbose = true,
+        "no-markup" => config.no_markup = true,
+        "interactive" => config.interactive = true,
         "nobexp" => config.no_binary_expansion = true,
+        "verbose" => config.logger.verbose = true,
         &_ => {}
     };
 }
 
 fn create_logger() -> Logger {
-    return Logger {
+    Logger {
         verbose: match env::var("VERBOSE_LOG") {
             Ok(_) => true,
             Err(_) => false,
         },
-    };
+    }
 }
 
 #[cfg(test)]
@@ -150,9 +157,9 @@ mod tests {
 
     #[test]
     fn test_simple_parse() {
-        let config = parse_args(&["-nc", "Hello,", "--listc", "World!", "--", "!"]);
+        let config = parse_args(&["-nc", "Hello,", "--listc", "World!", "--", "--lists", "!"]);
         assert_eq!(
-            config.text_input, "Hello, World! !",
+            config.text_input, "Hello, World! --lists !",
             "Invalid text scanning."
         );
         assert_eq!(config.newline, false, "Newline flag.");
