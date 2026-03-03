@@ -4,7 +4,7 @@ use crate::colors::{ansicodes::FORMAT_CODES, colorsheet::COLORS};
 use std::process::exit;
 
 const SAMPLE_TEXT: &str = "Hello, World!";
-const VERSION: &str = match option_env!("APP_VERSION") {
+const VERSION: &str = match option_env!("CARGO_APP_VERSION") {
     Some(v) => v,
     None => env!("CARGO_PKG_VERSION"),
 };
