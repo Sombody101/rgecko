@@ -5,7 +5,7 @@ pub struct Logger {
 
 impl Logger {
     pub(crate) fn new() -> Logger {
-        return Logger { verbose: false };
+        Logger { verbose: false }
     }
 }
 
@@ -13,7 +13,8 @@ impl Logger {
 macro_rules! v_log {
     ($logger:expr, $($arg:tt)*) => {
         if (&$logger).verbose {
-            eprintln!("[{}:{}] {}", module_path!(), line!(), format_args!($($arg)*));
+            // module slice to remove "rgecko::"
+            eprintln!("[{}:{}] {}", &module_path!()[8..], line!(), format_args!($($arg)*));
         }
     };
 }

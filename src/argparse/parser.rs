@@ -97,16 +97,16 @@ where
 
         if word.starts_with("--") {
             let trimmed_switch = &word[2..];
-            v_log!(config.logger, "Switch: {}", trimmed_switch);
+            v_log!(config.logger, "Switch: {:?}", trimmed_switch);
             resolve_switch(trimmed_switch, config);
         } else if word.starts_with('-') {
             let trimmed_switch = &word[1..];
-            v_log!(config.logger, "Shorthand group: {}", trimmed_switch);
+            v_log!(config.logger, "Shorthand group: {:?}", trimmed_switch);
             for char in trimmed_switch.chars() {
                 resolve_shorthand_switch(char, config);
             }
         } else {
-            v_log!(config.logger, "Pushing non-arg: {word}");
+            v_log!(config.logger, "Pushing non-arg: {word:?}");
             if !config.text_input.is_empty() {
                 config.text_input.push(' ');
             }

@@ -76,7 +76,9 @@ where
     for (i, &char) in chars.iter().enumerate() {
         match machine_state {
             MachineState::Normal => {
-                if char == '\x1b' && peek_equals(i, '[') {
+                if char == '\x1b'
+                    && (peek_equals(i, '[') || /* Legacy command */ peek_equals(i, '('))
+                {
                     color_buffer.push('\x1b');
                     machine_state = MachineState::ReadingAnsiCode;
                 } else if char == '[' {
@@ -95,13 +97,24 @@ where
             }
             MachineState::ReadingColor => {
                 if char == '[' {
-                    v_log!(opt.logger, "Found unexpected opening tag, ignoring.");
+                    v_log!(opt.logger, "Unexpected opening tag, ignoring.");
                     continue;
                 }
 
-                if lookbehind_equals(i, ']') && char == '/' {
+                // Check for reset tag "[/]"
+                if lookbehind_equals(i, '[') && char == '/' {
+                    color_buffer.clear();
                     machine_state = MachineState::ReadingReset;
-                } else if char == ']' && !(i >= 1 && lookbehind_equals(i, '[')) {
+                }
+                /* Finishes tags, but ignores cases like "[]" */
+                else if char == ']' {
+                    if lookbehind_equals(i, '[') {
+                        v_log!(opt.logger, "Unexpected empty tag, Ignoring.");
+                        color_buffer.clear(); // Sanity clean
+                        machine_state = MachineState::Normal;
+                        continue;
+                    }
+
                     resolve_color_code(
                         &color_buffer,
                         false,
@@ -112,6 +125,7 @@ where
                         opt.logger,
                     );
                     machine_state = MachineState::Normal;
+                    color_buffer.clear();
                 } else {
                     color_buffer.push(char);
                 }
@@ -206,73 +220,46 @@ fn resolve_color_code(
         }
     }
 
-    v_log!(logger, "Resolving tag '{}'", primary_color);
+    v_log!(logger, "Resolving {type} tag [{primary_color:?}]", type=(if resolving_background {"background color"} else {"color"}));
 
     let style_buffer = &mut visitor_state.style_buffer;
     let ansi_buffer = &mut visitor_state.ansi_buffer;
-    extract_color_information(primary_color, style_buffer, ansi_buffer, logger);
 
-    /*
-     * output should NOT be modified above this comment, it could lead to output corruption
-     */
-
-    if !ansi_buffer.is_empty() && ansi_buffer != "_" {
-        if ansi_buffer.starts_with('#')
-            && let 4 | 7 = ansi_buffer.len()
-        {
-            let hex_content = &ansi_buffer[1..];
-            if let Ok(i_color) = u32::from_str_radix(hex_content, 16) {
-                let final_color = if hex_content.len() == 3 {
-                    let r = (i_color >> 8) & 0xF;
-                    let g = (i_color >> 4) & 0xF;
-                    let b = i_color & 0xF;
-                    (r << 20) | (r << 16) | (g << 12) | (g << 8) | (b << 4) | b
-                } else {
-                    i_color
-                };
-
-                // hexadecimal
-                ansi_buffer.clear();
-                get_color_from_hex(final_color, resolving_background, ansi_buffer);
-            }
-        } else if ansi_buffer.starts_with("rgb(") {
-            // RGB
-            if let Some((r, g, b)) = parse_rgb_manual(&ansi_buffer) {
-                ansi_buffer.clear();
-                get_color_from_rgb([r, g, b], resolving_background, ansi_buffer);
-            }
-        } else {
-            // named color
-            if let Some(color) = get_color_by_name(&ansi_buffer) {
-                ansi_buffer.clear();
-                get_color_from_hex(color, resolving_background, ansi_buffer);
-            } else {
-                v_log!(logger, "Failed to find color '{}'", ansi_buffer);
-                return output.truncate(fallback_index);
-            }
-        }
-    } else if ansi_buffer == "_" {
-        ansi_buffer.clear();
+    if !extract_color_information(
+        primary_color,
+        style_buffer,
+        ansi_buffer,
+        resolving_background,
+        logger,
+    ) {
+        return output.truncate(fallback_index);
     }
 
     let scratch = &mut visitor_state.scratch;
-    v_log!(logger, "Final style: {:?}", style_buffer);
-    scratch.push_str(style_buffer);
-    v_log!(logger, "ANSI color: {:?}", ansi_buffer);
+    if !style_buffer.is_empty() {
+        scratch.push_str(style_buffer);
+    }
     scratch.push_str(ansi_buffer);
 
-    if resolving_background {
+    if resolving_background || scratch.is_empty() {
         // background color data is already in the buffers
         // the below pushes are for finalizing the ANSI command
         return;
     }
+
+    /*
+     * output should NOT be appended above this comment, it could lead to output corruption. Fallback truncation is fine.
+     */
 
     output.push_str(if no_binary_expansion {
         "\\x1b["
     } else {
         "\x1b["
     });
-    output.push_str(scratch.strip_prefix(';').unwrap_or(&scratch));
+
+    let finalized_command = scratch.strip_prefix(';').unwrap_or(&scratch);
+    v_log!(logger, "Resolved command: \\x1b[{:}m", finalized_command);
+    output.push_str(finalized_command);
     output.push('m');
 }
 
@@ -280,23 +267,84 @@ fn extract_color_information(
     raw_color: &str,
     style_out: &mut String,
     color_out: &mut String,
+    resolving_background: bool,
     logger: Logger,
-) {
+) -> bool {
     style_out.clear();
     color_out.clear();
 
+    macro_rules! LOOKUP_MSG {
+        () => {
+            "Lookup on '{}' -> {:?}"
+        };
+    }
+
+    let mut spare: &str = "";
     for item in raw_color.split(' ') {
-        v_log!(logger, "Working on '{}'", item);
         if let Some(code) = get_format_code_from_label(item) {
+            v_log!(logger, LOOKUP_MSG!(), item, code);
             style_out.push_str(code);
         } else {
+            spare = item;
             color_out.clear();
             color_out.push_str(item);
         }
     }
 
-    v_log!(logger, "Resolved style: {}", style_out);
-    v_log!(logger, "Resolved color: {}", color_out);
+    if color_out == "_" {
+        color_out.clear();
+    } else if !color_out.is_empty() {
+        // color lookup is deferred since there's many more colors to check
+        if !resolve_color_string(color_out, resolving_background, logger) {
+            return false;
+        }
+        v_log!(logger, LOOKUP_MSG!(), spare, color_out);
+    }
+
+    true
+}
+
+fn resolve_color_string(
+    ansi_buffer: &mut String,
+    resolving_background: bool,
+    logger: Logger,
+) -> bool {
+    if ansi_buffer.starts_with('#')
+        && let 4 | 7 = ansi_buffer.len()
+    {
+        // hexadecimal
+        let hex_content = &ansi_buffer[1..];
+        if let Ok(i_color) = u32::from_str_radix(hex_content, 16) {
+            let final_color = if hex_content.len() == 3 {
+                let r = (i_color >> 8) & 0xF;
+                let g = (i_color >> 4) & 0xF;
+                let b = i_color & 0xF;
+                (r << 20) | (r << 16) | (g << 12) | (g << 8) | (b << 4) | b
+            } else {
+                i_color
+            };
+
+            ansi_buffer.clear();
+            get_color_from_hex(final_color, resolving_background, ansi_buffer);
+        }
+    } else if ansi_buffer.starts_with("rgb(") {
+        // RGB
+        if let Some((r, g, b)) = parse_rgb_manual(&ansi_buffer) {
+            ansi_buffer.clear();
+            get_color_from_rgb([r, g, b], resolving_background, ansi_buffer);
+        }
+    } else {
+        // named color
+        if let Some(color) = get_color_by_name(&ansi_buffer) {
+            ansi_buffer.clear();
+            get_color_from_hex(color, resolving_background, ansi_buffer);
+        } else {
+            v_log!(logger, "Nonexistent color {ansi_buffer:?}");
+            return false;
+        }
+    }
+
+    true
 }
 
 pub fn split_rgb_int(color: u32) -> (u8, u8, u8) {

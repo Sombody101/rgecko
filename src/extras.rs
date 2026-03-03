@@ -1,4 +1,5 @@
 use crate::argparse::parser::{CliConfig, ExtraMode};
+use crate::colors::ansicodes::CONTROL_CHARS;
 use crate::colors::{ansicodes::FORMAT_CODES, colorsheet::COLORS};
 use std::process::exit;
 
@@ -149,9 +150,9 @@ fn calculate_output_buffer_size(sample_length: usize, mode: ExtraMode) -> usize 
     let code_width = 10;
 
     let (tag_padding, count) = match mode {
-        ExtraMode::ListColors => (15, 256),
-        ExtraMode::ListColorsAsBackground => (30, 256),
-        ExtraMode::ListStyles => (10, 10),
+        ExtraMode::ListColors => (15, CONTROL_CHARS.len()),
+        ExtraMode::ListColorsAsBackground => (30, CONTROL_CHARS.len()),
+        ExtraMode::ListStyles => (10, FORMAT_CODES.len()),
         _ => (5, 1),
     };
 

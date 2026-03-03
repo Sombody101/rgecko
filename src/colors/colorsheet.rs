@@ -19,7 +19,7 @@ pub static COLORS: &[(&str, u32)] = &[
     ("darkblue", 0x000087),          // 0,0,135
     ("blue3", 0x0000af),             // 0,0,175
     ("blue3_1", 0x0000d7),           // 0,0,215
-    ("blue1", 0x0000ff),             // 0,0,255
+    ("blue", 0x0000ff),             // 0,0,255
     ("darkgreen", 0x005f00),         // 0,95,0
     ("deepskyblue4", 0x005f5f),      // 0,95,95
     ("deepskyblue4_1", 0x005f87),    // 0,95,135
@@ -31,22 +31,22 @@ pub static COLORS: &[(&str, u32)] = &[
     ("turquoise4", 0x008787),        // 0,135,135
     ("deepskyblue3", 0x0087af),      // 0,135,175
     ("deepskyblue3_1", 0x0087d7),    // 0,135,215
-    ("dodgerblue1", 0x0087ff),       // 0,135,255
+    ("dodgerblue", 0x0087ff),       // 0,135,255
     ("green3", 0x00af00),            // 0,175,0
     ("springgreen3", 0x00af5f),      // 0,175,95
     ("darkcyan", 0x00af87),          // 0,175,135
     ("lightseagreen", 0x00afaf),     // 0,175,175
     ("deepskyblue2", 0x00afd7),      // 0,175,215
-    ("deepskyblue1", 0x00afff),      // 0,175,255
+    ("deepskyblue", 0x00afff),      // 0,175,255
     ("green3_1", 0x00d700),          // 0,215,0
     ("springgreen3_1", 0x00d75f),    // 0,215,95
     ("springgreen2", 0x00d787),      // 0,215,135
     ("cyan3", 0x00d7af),             // 0,215,175
     ("darkturquoise", 0x00d7d7),     // 0,215,215
     ("turquoise2", 0x00d7ff),        // 0,215,255
-    ("green1", 0x00ff00),            // 0,255,0
+    ("green", 0x00ff00),            // 0,255,0
     ("springgreen2_1", 0x00ff5f),    // 0,255,95
-    ("springgreen1", 0x00ff87),      // 0,255,135
+    ("springgreen", 0x00ff87),      // 0,255,135
     ("mediumspringgreen", 0x00ffaf), // 0,255,175
     ("cyan2", 0x00ffd7),             // 0,255,215
     ("darkred", 0x5f0000),           // 95,0,0
@@ -60,7 +60,7 @@ pub static COLORS: &[(&str, u32)] = &[
     ("mediumpurple4", 0x5f5f87),     // 95,95,135
     ("slateblue3", 0x5f5faf),        // 95,95,175
     ("slateblue3_1", 0x5f5fd7),      // 95,95,215
-    ("royalblue1", 0x5f5fff),        // 95,95,255
+    ("royalblue", 0x5f5fff),        // 95,95,255
     ("chartreuse4", 0x5f8700),       // 95,135,0
     ("darkseagreen4", 0x5f875f),     // 95,135,95
     ("paleturquoise4", 0x5f8787),    // 95,135,135
@@ -83,7 +83,7 @@ pub static COLORS: &[(&str, u32)] = &[
     ("seagreen2", 0x5fff5f),         // 95,255,95
     ("seagreen1", 0x5fff87),         // 95,255,135
     ("seagreen1_1", 0x5fffaf),       // 95,255,175
-    ("aquamarine1", 0x5fffd7),       // 95,255,215
+    ("aquamarine", 0x5fffd7),       // 95,255,215
     ("darkslategray2", 0x5fffff),    // 95,255,255
     ("darkred_1", 0x870000),         // 135,0,0
     ("deeppink4_1", 0x87005f),       // 135,0,95
@@ -114,13 +114,13 @@ pub static COLORS: &[(&str, u32)] = &[
     ("palegreen3_1", 0x87d787),      // 135,215,135
     ("darkseagreen3", 0x87d7af),     // 135,215,175
     ("darkslategray3", 0x87d7d7),    // 135,215,215
-    ("skyblue1", 0x87d7ff),          // 135,215,255
-    ("chartreuse1", 0x87ff00),       // 135,255,0
+    ("skyblue", 0x87d7ff),          // 135,215,255
+    ("chartreuse", 0x87ff00),       // 135,255,0
     ("lightgreen", 0x87ff5f),        // 135,255,95
     ("lightgreen_1", 0x87ff87),      // 135,255,135
-    ("palegreen1", 0x87ffaf),        // 135,255,175
+    ("palegreen", 0x87ffaf),        // 135,255,175
     ("aquamarine1_1", 0x87ffd7),     // 135,255,215
-    ("darkslategray1", 0x87ffff),    // 135,255,255
+    ("darkslategray", 0x87ffff),    // 135,255,255
     ("red3", 0xaf0000),              // 175,0,0
     ("deeppink4_2", 0xaf005f),       // 175,0,95
     ("mediumvioletred", 0xaf0087),   // 175,0,135
@@ -138,7 +138,7 @@ pub static COLORS: &[(&str, u32)] = &[
     ("rosybrown", 0xaf8787),         // 175,135,135
     ("gray63", 0xaf87af),            // 175,135,175
     ("mediumpurple2_1", 0xaf87d7),   // 175,135,215
-    ("mediumpurple1", 0xaf87ff),     // 175,135,255
+    ("mediumpurple", 0xaf87ff),     // 175,135,255
     ("gold3", 0xafaf00),             // 175,175,0
     ("darkkhaki", 0xafaf5f),         // 175,175,95
     ("navajowhite3", 0xafaf87),      // 175,175,135
@@ -150,13 +150,13 @@ pub static COLORS: &[(&str, u32)] = &[
     ("darkseagreen3_1", 0xafd787),   // 175,215,135
     ("darkseagreen2", 0xafd7af),     // 175,215,175
     ("lightcyan3", 0xafd7d7),        // 175,215,215
-    ("lightskyblue1", 0xafd7ff),     // 175,215,255
+    ("lightskyblue", 0xafd7ff),     // 175,215,255
     ("greenyellow", 0xafff00),       // 175,255,0
     ("darkolivegreen2", 0xafff5f),   // 175,255,95
     ("palegreen1_1", 0xafff87),      // 175,255,135
     ("darkseagreen2_1", 0xafffaf),   // 175,255,175
-    ("darkseagreen1", 0xafffd7),     // 175,255,215
-    ("paleturquoise1", 0xafffff),    // 175,255,255
+    ("darkseagreen", 0xafffd7),     // 175,255,215
+    ("paleturquoise", 0xafffff),    // 175,255,255
     ("red3_1", 0xd70000),            // 215,0,0
     ("deeppink3", 0xd7005f),         // 215,0,95
     ("deeppink3_1", 0xd70087),       // 215,0,135
@@ -168,7 +168,7 @@ pub static COLORS: &[(&str, u32)] = &[
     ("hotpink3_1", 0xd75f87),        // 215,95,135
     ("hotpink2", 0xd75faf),          // 215,95,175
     ("orchid", 0xd75fd7),            // 215,95,215
-    ("mediumorchid1", 0xd75fff),     // 215,95,255
+    ("mediumorchid", 0xd75fff),     // 215,95,255
     ("orange3", 0xd78700),           // 215,135,0
     ("lightsalmon3_1", 0xd7875f),    // 215,135,95
     ("lightpink3", 0xd78787),        // 215,135,135
@@ -186,14 +186,13 @@ pub static COLORS: &[(&str, u32)] = &[
     ("lightgoldenrod2", 0xd7d787),   // 215,215,135
     ("lightyellow3", 0xd7d7af),      // 215,215,175
     ("gray84", 0xd7d7d7),            // 215,215,215
-    ("lightsteelblue1", 0xd7d7ff),   // 215,215,255
+    ("lightsteelblue", 0xd7d7ff),   // 215,215,255
     ("yellow2", 0xd7ff00),           // 215,255,0
-    ("darkolivegreen1", 0xd7ff5f),   // 215,255,95
+    ("darkolivegreen", 0xd7ff5f),   // 215,255,95
     ("darkolivegreen1_1", 0xd7ff87), // 215,255,135
     ("darkseagreen1_1", 0xd7ffaf),   // 215,255,175
     ("honeydew2", 0xd7ffd7),         // 215,255,215
-    ("lightcyan1", 0xd7ffff),        // 215,255,255
-    ("red1", 0xff0000),              // 255,0,0
+    ("lightcyan", 0xd7ffff),        // 215,255,255
     ("deeppink2", 0xff005f),         // 255,0,95
     ("deeppink1", 0xff0087),         // 255,0,135
     ("deeppink1_1", 0xff00af),       // 255,0,175
@@ -205,28 +204,28 @@ pub static COLORS: &[(&str, u32)] = &[
     ("hotpink_1", 0xff5fd7),         // 255,95,215
     ("mediumorchid1_1", 0xff5fff),   // 255,95,255
     ("darkorange", 0xff8700),        // 255,135,0
-    ("salmon1", 0xff875f),           // 255,135,95
+    ("salmon", 0xff875f),           // 255,135,95
     ("lightcoral", 0xff8787),        // 255,135,135
-    ("palevioletred1", 0xff87af),    // 255,135,175
+    ("palevioletred", 0xff87af),    // 255,135,175
     ("orchid2", 0xff87d7),           // 255,135,215
-    ("orchid1", 0xff87ff),           // 255,135,255
-    ("orange1", 0xffaf00),           // 255,175,0
+    ("orchid", 0xff87ff),           // 255,135,255
+    ("orange", 0xffaf00),           // 255,175,0
     ("sandybrown", 0xffaf5f),        // 255,175,95
-    ("lightsalmon1", 0xffaf87),      // 255,175,135
-    ("lightpink1", 0xffafaf),        // 255,175,175
-    ("pink1", 0xffafd7),             // 255,175,215
-    ("plum1", 0xffafff),             // 255,175,255
-    ("gold1", 0xffd700),             // 255,215,0
+    ("lightsalmon", 0xffaf87),      // 255,175,135
+    ("lightpink", 0xffafaf),        // 255,175,175
+    ("pink", 0xffafd7),             // 255,175,215
+    ("plum", 0xffafff),             // 255,175,255
+    ("gold", 0xffd700),             // 255,215,0
     ("lightgoldenrod2_1", 0xffd75f), // 255,215,95
     ("lightgoldenrod2_2", 0xffd787), // 255,215,135
-    ("navajowhite1", 0xffd7af),      // 255,215,175
-    ("mistyrose1", 0xffd7d7),        // 255,215,215
-    ("thistle1", 0xffd7ff),          // 255,215,255
-    ("yellow1", 0xffff00),           // 255,255,0
-    ("lightgoldenrod1", 0xffff5f),   // 255,255,95
-    ("khaki1", 0xffff87),            // 255,255,135
-    ("wheat1", 0xffffaf),            // 255,255,175
-    ("cornsilk1", 0xffffd7),         // 255,255,215
+    ("navajowhite", 0xffd7af),      // 255,215,175
+    ("mistyrose", 0xffd7d7),        // 255,215,215
+    ("thistle", 0xffd7ff),          // 255,215,255
+    ("yellow", 0xffff00),           // 255,255,0
+    ("lightgoldenrod", 0xffff5f),   // 255,255,95
+    ("khaki", 0xffff87),            // 255,255,135
+    ("wheat", 0xffffaf),            // 255,255,175
+    ("cornsilk", 0xffffd7),         // 255,255,215
     ("gray100", 0xffffff),           // 255,255,255
     ("gray3", 0x080808),             // 8,8,8
     ("gray7", 0x121212),             // 18,18,18
