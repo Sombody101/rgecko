@@ -135,13 +135,12 @@ Options:
       --help            Print help
       --version         Print version
   
-rgecko v{VERSION}
-"#
+rgecko v{VERSION}"#
     );
 }
 
 fn print_version_info() {
-    println!("rgecko v{VERSION}");
+    print!("rgecko v{VERSION}");
 }
 
 fn calculate_output_buffer_size(sample_length: usize, mode: ExtraMode) -> usize {
