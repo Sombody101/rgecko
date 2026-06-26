@@ -3,11 +3,11 @@ use std::env;
 use std::io::{self, IsTerminal};
 
 pub fn get_color_support() -> ColorMode {
-    return if ansi_supported() {
+    if ansi_supported() {
         ColorMode::Color256
     } else {
         ColorMode::NoColor
-    };
+    }
 }
 
 fn ansi_supported() -> bool {

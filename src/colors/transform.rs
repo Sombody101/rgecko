@@ -2,7 +2,8 @@ use crate::argparse::parser::ColorMode;
 use crate::colors::ansicodes::{CONTROL_CHARS, get_format_code_from_label};
 use crate::colors::colorsheet::{COLORS, get_color_by_name};
 use crate::logger::Logger;
-use crate::v_log;
+use crate::{v_log, v_logperf};
+use std::time::Instant;
 
 const RESET_COLOR: &str = "\x1b[0m";
 const READABLE_RESET_COLOR: &str = "\\x1b[0m";
@@ -73,24 +74,27 @@ where
         return index != len - 1 && chars.get(index + 1) == Some(&char);
     };
 
+    let now = Instant::now();
     for (i, &char) in chars.iter().enumerate() {
         match machine_state {
             MachineState::Normal => {
-                if char == '\x1b'
+                if char == '[' {
+                    if !peek_equals(i, '[') {
+                        machine_state = MachineState::ReadingColor;
+                        continue;
+                    }
+
+                    v_log!(opt.logger, "Escaping tag at index {}", i);
+                    buffer.push('[');
+                    machine_state = MachineState::Skip;
+                    color_buffer.clear();
+                } else if char == '\\' && opt.handle_escape {
+                    machine_state = MachineState::ReadingEscapeCode;
+                } else if char == '\x1b'
                     && (peek_equals(i, '[') || /* Legacy command */ peek_equals(i, '('))
                 {
                     color_buffer.push('\x1b');
                     machine_state = MachineState::ReadingAnsiCode;
-                } else if char == '[' {
-                    if peek_equals(i, '[') {
-                        v_log!(opt.logger, "Escaping tag at index {}", i);
-                        buffer.push('[');
-                        machine_state = MachineState::Skip;
-                        continue;
-                    }
-
-                    machine_state = MachineState::ReadingColor;
-                    color_buffer.clear();
                 } else {
                     buffer.push(char);
                 }
@@ -98,6 +102,11 @@ where
             MachineState::ReadingColor => {
                 if char == '[' {
                     v_log!(opt.logger, "Unexpected opening tag, ignoring.");
+                    continue;
+                }
+
+                if char == ' ' && lookbehind_equals(i, ' ') {
+                    // This eats any random gaps like "[ blue   on white ]"
                     continue;
                 }
 
@@ -143,6 +152,32 @@ where
 
                 machine_state = MachineState::Normal;
             }
+            MachineState::ReadingEscapeCode => {
+                let opcode = color_buffer.as_bytes().first().cloned();
+
+                let is_valid_digit = match opcode {
+                    Some(b'x') => char.is_ascii_hexdigit(),
+                    Some(b'0') => (b'0'..=b'7').contains(&(char as u8)),
+                    _ => false,
+                };
+
+                let is_at_limit = match opcode {
+                    Some(b'x') => color_buffer.len() == 3,
+                    Some(b'0') => color_buffer.len() == 4,
+                    _ => !color_buffer.is_empty(),
+                };
+
+                if !is_valid_digit || is_at_limit {
+                    v_log!(opt.logger, "Resolving esc-code: {color_buffer:?}");
+                    let byte = resolve_escape_code(&color_buffer);
+                    buffer.push(byte as char);
+
+                    color_buffer.clear();
+                    machine_state = MachineState::Normal;
+                } else {
+                    color_buffer.push(char);
+                }
+            }
             MachineState::ReadingAnsiCode => {
                 color_buffer.push(char);
                 if char >= '@' && char <= '~' {
@@ -162,17 +197,7 @@ where
         }
     }
 
-    if machine_state == MachineState::ReadingColor {
-        resolve_color_code(
-            &color_buffer,
-            false,
-            opt.color_mode,
-            opt.no_binary_expansion,
-            &mut visitor_state,
-            &mut buffer,
-            opt.logger,
-        );
-    }
+    v_logperf!(opt.logger, "Parse took {:.2?}", now.elapsed());
 
     if opt.handle_escape {
         expand_escape_codes(&buffer);
@@ -326,12 +351,19 @@ fn resolve_color_string(
 
             ansi_buffer.clear();
             get_color_from_hex(final_color, resolving_background, ansi_buffer);
+        } else {
+            v_log!(logger, "Invalid hex format, skipping color");
+            return false;
         }
     } else if ansi_buffer.starts_with("rgb(") {
         // RGB
         if let Some((r, g, b)) = parse_rgb_manual(&ansi_buffer) {
             ansi_buffer.clear();
             get_color_from_rgb([r, g, b], resolving_background, ansi_buffer);
+        } else {
+            ansi_buffer.clear();
+            v_log!(logger, "Invalid RGB format, skipping color");
+            return false;
         }
     } else {
         // named color
@@ -351,7 +383,7 @@ pub fn split_rgb_int(color: u32) -> (u8, u8, u8) {
     let r: u8 = ((color >> 16) & 0xff) as u8;
     let g: u8 = ((color >> 8) & 0xff) as u8;
     let b: u8 = (color & 0xff) as u8;
-    return (r, g, b);
+    (r, g, b)
 }
 
 #[allow(unused)]
@@ -360,7 +392,7 @@ fn string_hex_to_rgb(hex_color: &str) -> (u8, u8, u8) {
     let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(0);
     let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(0);
     let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(0);
-    return (r, g, b);
+    (r, g, b)
 }
 
 fn find_nearest_color(user_rgb: [u8; 3]) -> u32 {
@@ -387,7 +419,7 @@ fn find_nearest_color(user_rgb: [u8; 3]) -> u32 {
         }
     }
 
-    return nearest_hex;
+    nearest_hex
 }
 
 fn parse_rgb_manual(s: &str) -> Option<(u8, u8, u8)> {
@@ -411,7 +443,7 @@ fn get_color_from_rgb(colors: [u8; 3], background: bool, buffer: &mut String) {
     let color_type = if background { 48 } else { 38 };
     let (r, g, b) = split_rgb_int(find_nearest_color(colors));
     use std::fmt::Write;
-    let _ = write!(buffer, ";{};2;{};{};{}", color_type, r, g, b);
+    let _ = write!(buffer, ";{color_type};2;{r};{g};{b}");
 }
 
 fn expand_escape_codes(input: &str) -> String {
@@ -441,7 +473,46 @@ fn expand_escape_codes(input: &str) -> String {
         }
     }
 
-    return result;
+    result
+}
+
+pub fn resolve_escape_code(instruction: &str) -> u8 {
+    let mut chars = instruction.chars();
+    let code = match chars.next() {
+        Some(c) => c,
+        None => return 0,
+    };
+
+    match code {
+        'x' => {
+            let mut val = 0u8;
+            for c in chars {
+                if let Some(digit) = c.to_digit(16) {
+                    val = (val << 4) | digit as u8;
+                } else {
+                    break;
+                }
+            }
+            val
+        }
+        '0' => {
+            let mut val = 0u8;
+            for c in chars {
+                if let Some(digit) = c.to_digit(8) {
+                    val = (val << 3) | digit as u8;
+                } else {
+                    break;
+                }
+            }
+            val
+        }
+        'e' => 0x1b,
+        'n' => b'\n',
+        'r' => b'\r',
+        't' => b'\t',
+        '\\' => b'\\',
+        other => other as u8,
+    }
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -451,6 +522,7 @@ enum MachineState {
     ReadingColor,
     ReadingReset,
     ReadingAnsiCode,
+    ReadingEscapeCode,
     Skip,
 }
 

@@ -10,7 +10,7 @@ test:
 	cargo test
 
 dhat:
-    time cargo run --features dhat-heap --
+	time cargo run --features dhat-heap --
 
 fuzz:
 	# Fuzz doesn't have a way to choose a profile, so a manual LTO is needed.

@@ -58,7 +58,7 @@ fn output_final(config: &CliConfig, mut text: String) {
 
 fn less_forward(text: String) {
     if let Ok(mut child) = std::process::Command::new("less")
-        .args(["-R", "-S", "-X", "-F"])
+        .args(["-RSXF"])
         .stdin(std::process::Stdio::piped())
         .spawn()
     {

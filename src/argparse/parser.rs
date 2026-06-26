@@ -1,5 +1,5 @@
 use crate::colors::terms::get_color_support;
-use crate::{logger::Logger, v_log};
+use crate::{logger::Logger, logger::LoggerMode, v_log};
 use std::env;
 
 pub struct CliConfig {
@@ -137,16 +137,19 @@ fn resolve_switch(word: &str, config: &mut CliConfig) {
         "no-markup" => config.no_markup = true,
         "interactive" => config.interactive = true,
         "nobexp" => config.no_binary_expansion = true,
-        "verbose" => config.logger.verbose = true,
+        "verbose" => config.logger.mode = LoggerMode::Verbose,
         &_ => {}
     };
 }
 
 fn create_logger() -> Logger {
     Logger {
-        verbose: match env::var("VERBOSE_LOG") {
-            Ok(_) => true,
-            Err(_) => false,
+        mode: match env::var("VERBOSE_LOG") {
+            Ok(v) => match v.as_str() {
+                "perf" => LoggerMode::Performance,
+                _ => LoggerMode::Verbose,
+            },
+            Err(_) => LoggerMode::Disabled,
         },
     }
 }
