@@ -28,7 +28,7 @@ impl Default for MarkupOptions {
     }
 }
 
-struct VisitorState {
+pub(crate) struct VisitorState {
     /* Used to store ANSI styles */
     style_buffer: String,
     /* Used for formatting ANSI codes */
@@ -203,6 +203,7 @@ where
         expand_escape_codes(&buffer);
     }
 
+    buffer.shrink_to_fit();
     buffer
 }
 
@@ -516,7 +517,7 @@ pub fn resolve_escape_code(instruction: &str) -> u8 {
 }
 
 #[derive(Debug, Default, PartialEq)]
-enum MachineState {
+pub(crate) enum MachineState {
     #[default]
     Normal,
     ReadingColor,

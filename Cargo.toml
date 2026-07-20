@@ -14,6 +14,7 @@ path = "src/lib.rs"
 arbitrary = { version = "1.4.2", features = ["derive"], optional = true }
 dhat = "0.3.3"
 log = "0.4.29"
+nom = "8.0.0"
 
 [features]
 fuzzing = ["arbitrary"]

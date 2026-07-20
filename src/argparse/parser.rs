@@ -43,11 +43,7 @@ pub enum ExtraMode {
     ListStyles,
 }
 
-pub fn parse_args<I, T>(args: I) -> CliConfig
-where
-    I: IntoIterator<Item = T>,
-    T: AsRef<str>,
-{
+pub fn parse_args(args: &[&str]) -> CliConfig {
     let mut config = CliConfig {
         color_mode: ColorMode::Default,
         handle_escape: false,
@@ -74,6 +70,7 @@ where
         config.color_mode = get_color_support();
     }
 
+    config.text_input.shrink_to_fit();
     config
 }
 
