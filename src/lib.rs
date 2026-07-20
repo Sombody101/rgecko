@@ -26,6 +26,21 @@ pub fn markup(args: &[&str], out: &mut impl Write) {
     output_final(&config, final_output, out);
 }
 
+pub fn markup_string(args: &[&str]) -> String {
+    let mut config = parser::parse_args(args);
+
+    let mut prepared_text = String::new();
+    if !extras::handle_cli_extras(&config, &mut prepared_text) {
+        prepared_text = std::mem::take(&mut config.text_input);
+    }
+
+    if config.no_markup {
+        prepared_text
+    } else {
+        process_text(&config, prepared_text)
+    }
+}
+
 fn process_text(config: &CliConfig, text: String) -> String {
     let options = MarkupOptions {
         color_mode: config.color_mode,
