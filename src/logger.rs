@@ -5,19 +5,19 @@ pub struct Logger {
     pub mode: LoggerMode,
 }
 
-#[derive(Clone, Copy, PartialEq, PartialOrd)]
-pub enum LoggerMode {
-    Performance = 0, // Doesn't mean the code is performant, it allows v_logperf to print
-    Verbose = 1,
-    Disabled = 2,
-}
-
 impl Logger {
     pub(crate) fn new() -> Logger {
         Logger {
             mode: LoggerMode::Disabled,
         }
     }
+}
+
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
+pub enum LoggerMode {
+    Performance = 0, // Doesn't mean the code is performant, it allows v_logperf to print
+    Verbose = 1,
+    Disabled = 2,
 }
 
 #[macro_export]

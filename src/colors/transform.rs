@@ -10,7 +10,6 @@ const READABLE_RESET_COLOR: &str = "\\x1b[0m";
 
 pub struct MarkupOptions {
     pub color_mode: ColorMode,
-    pub newline: bool,
     pub handle_escape: bool,
     pub no_binary_expansion: bool,
     pub logger: Logger,
@@ -20,7 +19,6 @@ impl Default for MarkupOptions {
     fn default() -> Self {
         Self {
             color_mode: ColorMode::Color256,
-            newline: false,
             handle_escape: true,
             no_binary_expansion: false,
             logger: Logger::new(),
@@ -47,15 +45,11 @@ impl VisitorState {
     }
 }
 
-pub fn markup_text<T>(user_text: &str, options: T) -> String
-where
-    T: Into<MarkupOptions>,
+pub fn markup_text(user_text: &str, opt: MarkupOptions) -> String
 {
     if user_text.is_empty() {
         return String::new();
     }
-
-    let opt = options.into();
 
     let mut visitor_state = VisitorState::new();
     let mut buffer = String::with_capacity(user_text.len());

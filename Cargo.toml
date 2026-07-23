@@ -13,6 +13,7 @@ path = "src/lib.rs"
 [dependencies]
 arbitrary = { version = "1.4.2", features = ["derive"], optional = true }
 dhat = "0.3.3"
+itoa = "1.0.18"
 log = "0.4.29"
 nom = "8.0.0"
 

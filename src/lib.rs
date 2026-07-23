@@ -1,6 +1,7 @@
 use crate::argparse::parser;
 use crate::argparse::parser::CliConfig;
-use crate::colors::transform::{MarkupOptions, markup_text};
+use crate::colors::transform::MarkupOptions;
+use crate::colors::ztran::markup_text;
 use std::io::Write;
 
 pub mod argparse;
@@ -9,51 +10,59 @@ pub mod colors;
 pub mod logger;
 pub mod extras;
 
-pub fn markup(args: &[&str], out: &mut impl Write) {
-    let mut config = parser::parse_args(args);
+pub fn markup_write(args: &[&str], out: &mut impl Write) {
+    let config = parser::parse_args(args);
+    markup_write_cli(&config, out);
+}
 
-    let mut prepared_text = String::new();
-    if !extras::handle_cli_extras(&config, &mut prepared_text) {
-        prepared_text = std::mem::take(&mut config.text_input);
-    }
+pub fn markup_write_cli(config: &CliConfig, out: &mut impl Write) {
+    cli_extras(&config);
 
     let final_output = if config.no_markup {
-        prepared_text
+        config.text_input.as_str()
     } else {
-        process_text(&config, prepared_text)
+        &process_text(&config)
     };
 
     output_final(&config, final_output, out);
 }
 
-pub fn markup_string(args: &[&str]) -> String {
+pub fn markup_args(args: &[&str]) -> String {
     let mut config = parser::parse_args(args);
 
-    let mut prepared_text = String::new();
-    if !extras::handle_cli_extras(&config, &mut prepared_text) {
-        prepared_text = std::mem::take(&mut config.text_input);
-    }
+    cli_extras(&mut config);
 
     if config.no_markup {
-        prepared_text
+        config.text_input
     } else {
-        process_text(&config, prepared_text)
+        process_text(&config)
     }
 }
 
-fn process_text(config: &CliConfig, text: String) -> String {
+pub fn markup_string(text: &str, config: &MarkupOptions) -> String {
+    markup_text(text, config)
+}
+
+fn cli_extras(config: &CliConfig) {
+    let mut prepared_text = String::new();
+    if !extras::handle_cli_extras(&config, &mut prepared_text) {
+        //prepared_text = std::mem::take(&mut config.text_input);
+    }
+}
+
+fn process_text(config: &CliConfig) -> String {
     let options = MarkupOptions {
         color_mode: config.color_mode,
-        newline: config.newline,
         handle_escape: config.handle_escape,
         no_binary_expansion: config.no_binary_expansion,
         logger: config.logger,
     };
 
-    markup_text(&text, options)
+    //colors::transform::markup_text(&config.text_input, options)
+    markup_text(&config.text_input, &options)
 }
 
-fn output_final(config: &CliConfig, mut text: String, out: &mut impl Write) {
+fn output_final(config: &CliConfig, text: &str, out: &mut impl Write) {
     if config.interactive {
         v_log!(config.logger, "Forwarding to less");
         less_forward(text);
@@ -67,7 +76,7 @@ fn output_final(config: &CliConfig, mut text: String, out: &mut impl Write) {
     }
 }
 
-fn less_forward(text: String) {
+fn less_forward(text: &str) {
     if let Ok(mut child) = std::process::Command::new("less")
         .args(["-RSXF"])
         .stdin(std::process::Stdio::piped())

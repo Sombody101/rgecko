@@ -160,7 +160,7 @@ fn calculate_output_buffer_size(sample_length: usize, mode: ExtraMode) -> usize 
     let total_estimate = (bytes_per_line * count) + 1024;
 
     if total_estimate >= (500 * 1024 * 1024) {
-        eprintln!("Input text too large0!");
+        eprintln!("Input text too large!");
         exit(1);
     }
 
