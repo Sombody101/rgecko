@@ -1,9 +1,37 @@
 use crate::argparse::parser::ColorMode;
 use crate::colors::ansicodes::{AnsiCommand, Color, Layer, Style};
 use crate::colors::colorsheet::{COLORS, get_color_by_name};
-use crate::colors::transform::{MachineState, MarkupOptions, split_rgb_int};
 use crate::logger::Logger;
 use crate::v_log;
+
+pub struct MarkupOptions {
+    pub color_mode: ColorMode,
+    pub handle_escape: bool,
+    pub no_binary_expansion: bool,
+    pub logger: Logger,
+}
+
+impl Default for MarkupOptions {
+    fn default() -> Self {
+        Self {
+            color_mode: ColorMode::Color256,
+            handle_escape: true,
+            no_binary_expansion: false,
+            logger: Logger::new(),
+        }
+    }
+}
+
+#[derive(Debug, Default, PartialEq)]
+pub(crate) enum MachineState {
+    #[default]
+    Normal,
+    ReadingColor,
+    ReadingReset,
+    ReadingAnsiCode,
+    ReadingEscapeCode,
+    Skip,
+}
 
 pub fn markup_text(text: &str, opt: &MarkupOptions) -> String {
     let logger = opt.logger;
@@ -279,6 +307,13 @@ fn parse_rgb_manual(s: &str) -> Option<(u8, u8, u8)> {
     let b = parts.next()?.trim().parse().ok()?;
 
     Some((r, g, b))
+}
+
+pub fn split_rgb_int(color: u32) -> (u8, u8, u8) {
+    let r: u8 = ((color >> 16) & 0xff) as u8;
+    let g: u8 = ((color >> 8) & 0xff) as u8;
+    let b: u8 = (color & 0xff) as u8;
+    (r, g, b)
 }
 
 fn find_nearest_rgb(user_rgb: [u8; 3]) -> [u8; 3] {

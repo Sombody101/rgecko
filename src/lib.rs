@@ -1,7 +1,6 @@
 use crate::argparse::parser;
 use crate::argparse::parser::CliConfig;
-use crate::colors::transform::MarkupOptions;
-use crate::colors::ztran::markup_text;
+use crate::colors::ztran::{MarkupOptions, markup_text};
 use std::io::Write;
 
 pub mod argparse;
